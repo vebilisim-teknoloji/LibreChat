@@ -1314,3 +1314,91 @@ export const useResetToolSettingsMutation = (): UseMutationResult<
     },
   );
 };
+
+// Organization Membership Mutation Types
+
+export interface TAddUserToOrganizationRequest {
+  userId: string;
+  organizationId: string;
+}
+
+export interface TAddUserToOrganizationByEmailRequest {
+  email: string;
+}
+
+export interface TRemoveUserFromOrganizationRequest {
+  userId: string;
+}
+
+export interface TOrganizationMembershipResponse {
+  message: string;
+  user?: TAdminUser;
+}
+
+// Mutation: Add User to Organization (Admin - by userId + organizationId)
+export const useAddUserToOrganizationMutation = (): UseMutationResult<
+  TOrganizationMembershipResponse,
+  unknown,
+  TAddUserToOrganizationRequest,
+  unknown
+> => {
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    (payload: TAddUserToOrganizationRequest) =>
+      request.post('/api/admin/users/organization/add', payload),
+    {
+      onSuccess: (_, variables) => {
+        queryClient.invalidateQueries([QueryKeys.user, 'admin', 'user', variables.userId]);
+        queryClient.invalidateQueries([QueryKeys.user, 'admin', 'users']);
+        queryClient.invalidateQueries([QueryKeys.user, 'admin', 'stats']);
+        queryClient.invalidateQueries(['admin', 'organizations']);
+      },
+    },
+  );
+};
+
+// Mutation: Add User to Organization by Email (ORG_ADMIN)
+export const useAddUserToOrganizationByEmailMutation = (): UseMutationResult<
+  TOrganizationMembershipResponse,
+  unknown,
+  TAddUserToOrganizationByEmailRequest,
+  unknown
+> => {
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    (payload: TAddUserToOrganizationByEmailRequest) =>
+      request.post('/api/admin/users/organization/add', payload),
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries([QueryKeys.user, 'admin', 'users']);
+        queryClient.invalidateQueries([QueryKeys.user, 'admin', 'stats']);
+        queryClient.invalidateQueries(['admin', 'organizations']);
+      },
+    },
+  );
+};
+
+// Mutation: Remove User from Organization
+export const useRemoveUserFromOrganizationMutation = (): UseMutationResult<
+  TOrganizationMembershipResponse,
+  unknown,
+  TRemoveUserFromOrganizationRequest,
+  unknown
+> => {
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    (payload: TRemoveUserFromOrganizationRequest) =>
+      request.post('/api/admin/users/organization/remove', payload),
+    {
+      onSuccess: (_, variables) => {
+        queryClient.invalidateQueries([QueryKeys.user, 'admin', 'user', variables.userId]);
+        queryClient.invalidateQueries([QueryKeys.user, 'admin', 'users']);
+        queryClient.invalidateQueries([QueryKeys.user, 'admin', 'stats']);
+        queryClient.invalidateQueries(['admin', 'organizations']);
+      },
+    },
+  );
+};

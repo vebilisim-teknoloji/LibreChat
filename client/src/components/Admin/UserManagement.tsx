@@ -20,7 +20,8 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
-  CalendarClock
+  CalendarClock,
+  UserPlus
 } from 'lucide-react';
 import {
   Button,
@@ -45,6 +46,7 @@ import { useLocalize } from '~/hooks';
 import { useNavigate } from 'react-router-dom';
 import UserCreationModal from './UserCreationModal';
 import SetExpirationModal from './SetExpirationModal';
+import AssignOrganizationModal from './AssignOrganizationModal';
 import { useAuthContext } from '~/hooks/AuthContext';
 import { SystemRoles } from 'librechat-data-provider';
 
@@ -101,6 +103,8 @@ export default function UserManagement() {
   const [passwordReset, setPasswordReset] = useState<{ userId: string; userEmail: string } | null>(null);
   const [roleChange, setRoleChange] = useState<{ userId: string; userEmail: string; currentRole: string; newRole: string } | null>(null);
   const [expirationChange, setExpirationChange] = useState<{ userId: string; userName: string; currentExpiresAt: string | null } | null>(null);
+  const [organizationAssign, setOrganizationAssign] = useState<{ userId: string; userName: string; currentOrganizationId: string | null; currentOrganizationName: string | null } | null>(null);
+  const [showAddUserByEmail, setShowAddUserByEmail] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [passwordErrors, setPasswordErrors] = useState<{ [key: string]: string }>({});
 
@@ -321,15 +325,28 @@ export default function UserManagement() {
               </p>
             </div>
           </div>
-          <Button
-            variant="default"
-            size="default"
-            onClick={() => setShowCreateModal(true)}
-            className="w-full bg-[var(--admin-header-icon-bg)] text-[var(--admin-header-text)] border-[var(--admin-header-icon-bg)] hover:bg-[var(--admin-header-icon-bg)]/80 sm:w-auto"
-          >
-            <Plus className="h-4 w-4" />
-            {localize('com_admin_create_user')}
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            {isOrgAdmin && (
+              <Button
+                variant="default"
+                size="default"
+                onClick={() => setShowAddUserByEmail(true)}
+                className="w-full bg-green-600 text-white border-green-600 hover:bg-green-700 sm:w-auto"
+              >
+                <UserPlus className="h-4 w-4" />
+                {localize('com_admin_add_existing_user')}
+              </Button>
+            )}
+            <Button
+              variant="default"
+              size="default"
+              onClick={() => setShowCreateModal(true)}
+              className="w-full bg-[var(--admin-header-icon-bg)] text-[var(--admin-header-text)] border-[var(--admin-header-icon-bg)] hover:bg-[var(--admin-header-icon-bg)]/80 sm:w-auto"
+            >
+              <Plus className="h-4 w-4" />
+              {localize('com_admin_create_user')}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -672,17 +689,33 @@ export default function UserManagement() {
                     </td>
                     {!isOrgAdmin && (
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {user.organizationName ? (
-                          <button
-                            onClick={() => navigate(`/d/admin/organizations/${user.organization}`)}
-                            className="flex items-center gap-2 hover:underline admin-link transition-colors"
+                        <div className="flex items-center gap-2">
+                          {user.organizationName ? (
+                            <button
+                              onClick={() => navigate(`/d/admin/organizations/${user.organization}`)}
+                              className="flex items-center gap-2 hover:underline admin-link transition-colors"
+                            >
+                              <Building2 className="h-4 w-4" />
+                              <span className="text-sm">{user.organizationName}</span>
+                            </button>
+                          ) : (
+                            <span className="text-sm admin-text-muted">-</span>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setOrganizationAssign({
+                              userId: user._id,
+                              userName: user.name || user.username || user.email,
+                              currentOrganizationId: user.organization || null,
+                              currentOrganizationName: user.organizationName || null,
+                            })}
+                            className="h-6 w-6 text-text-tertiary hover:text-blue-500"
+                            title={localize('com_admin_assign_organization')}
                           >
-                            <Building2 className="h-4 w-4" />
-                            <span className="text-sm">{user.organizationName}</span>
-                          </button>
-                        ) : (
-                          <span className="text-sm admin-text-muted">-</span>
-                        )}
+                            <Edit className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </td>
                     )}
                     <td className="px-6 py-4 whitespace-nowrap text-sm admin-text-primary">
@@ -1270,6 +1303,26 @@ export default function UserManagement() {
         userName={expirationChange?.userName || ''}
         currentExpiration={expirationChange?.currentExpiresAt}
         isLoading={updateUserMutation.isLoading}
+      />
+
+      {/* Assign Organization Modal (for Admin) */}
+      <AssignOrganizationModal
+        isOpen={!!organizationAssign}
+        onClose={() => setOrganizationAssign(null)}
+        onSuccess={() => refetch()}
+        userId={organizationAssign?.userId}
+        userName={organizationAssign?.userName}
+        currentOrganizationId={organizationAssign?.currentOrganizationId}
+        currentOrganizationName={organizationAssign?.currentOrganizationName}
+        isOrgAdmin={false}
+      />
+
+      {/* Add User by Email Modal (for ORG_ADMIN) */}
+      <AssignOrganizationModal
+        isOpen={showAddUserByEmail}
+        onClose={() => setShowAddUserByEmail(false)}
+        onSuccess={() => refetch()}
+        isOrgAdmin={true}
       />
     </div>
   );

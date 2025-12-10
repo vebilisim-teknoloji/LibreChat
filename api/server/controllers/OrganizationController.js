@@ -552,6 +552,137 @@ const resetOrganizationUserPassword = async (req, res) => {
   }
 };
 
+/**
+ * Add existing user to organization by email (Org Admin only).
+ * Security: ORG_ADMIN can only add users by email, cannot browse other users.
+ */
+const addUserToOrganizationByEmail = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const adminUser = req.user;
+
+    if (!adminUser.organization) {
+      return res.status(403).json({ message: 'Admin not in an organization' });
+    }
+
+    if (!email) {
+      return res.status(400).json({ message: 'Email is required' });
+    }
+
+    // Find user by email
+    const targetUser = await User.findOne({ email: email.toLowerCase() });
+
+    if (!targetUser) {
+      return res.status(404).json({ message: 'User with this email not found' });
+    }
+
+    // Check if user is already in an organization
+    if (targetUser.organization) {
+      if (String(targetUser.organization) === String(adminUser.organization)) {
+        return res.status(400).json({ message: 'User is already a member of your organization' });
+      }
+      return res.status(400).json({ message: 'User is already a member of another organization' });
+    }
+
+    // Prevent adding ADMIN users to organization
+    if (targetUser.role === SystemRoles.ADMIN) {
+      return res.status(403).json({ message: 'Cannot add system administrators to organization' });
+    }
+
+    // Get organization details
+    const organization = await Organization.findById(adminUser.organization);
+    if (!organization) {
+      return res.status(404).json({ message: 'Organization not found' });
+    }
+
+    // Add user to organization
+    const updatedUser = await User.findByIdAndUpdate(
+      targetUser._id,
+      { organization: adminUser.organization },
+      { new: true, select: '-password -__v -totpSecret -backupCodes' }
+    ).lean();
+
+    logger.info(
+      `[addUserToOrganizationByEmail] Org Admin ${adminUser.email} added user ${targetUser.email} to organization ${organization.name}`,
+    );
+
+    res.status(200).json({
+      message: 'User added to organization successfully',
+      user: {
+        _id: updatedUser._id,
+        email: updatedUser.email,
+        name: updatedUser.name,
+        username: updatedUser.username,
+        role: updatedUser.role,
+        organization: updatedUser.organization,
+        membershipExpiresAt: updatedUser.membershipExpiresAt,
+        createdAt: updatedUser.createdAt,
+      },
+    });
+  } catch (error) {
+    logger.error('[addUserToOrganizationByEmail]', error);
+    res.status(500).json({ message: 'Error adding user to organization' });
+  }
+};
+
+/**
+ * Remove user from organization (Org Admin only).
+ * Only removes from organization, does not delete the user.
+ */
+const removeUserFromOrganization = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const adminUser = req.user;
+
+    if (!adminUser.organization) {
+      return res.status(403).json({ message: 'Admin not in an organization' });
+    }
+
+    const targetUser = await User.findById(userId);
+
+    if (!targetUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Security check: Ensure target user belongs to the same org
+    if (String(targetUser.organization) !== String(adminUser.organization)) {
+      return res.status(403).json({ message: 'User is not a member of your organization' });
+    }
+
+    // Prevent removing self
+    if (String(targetUser._id) === String(adminUser._id)) {
+      return res.status(400).json({ message: 'Cannot remove yourself from organization' });
+    }
+
+    // Prevent removing other ORG_ADMINs
+    if (targetUser.role === SystemRoles.ORG_ADMIN) {
+      return res.status(403).json({ message: 'Cannot remove organization admins' });
+    }
+
+    // Get organization details for logging
+    const organization = await Organization.findById(adminUser.organization);
+
+    // Remove organization from user
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $unset: { organization: 1 } },
+      { new: true, select: '-password -__v -totpSecret -backupCodes' }
+    ).lean();
+
+    logger.info(
+      `[removeUserFromOrganization] Org Admin ${adminUser.email} removed user ${targetUser.email} from organization ${organization?.name || adminUser.organization}`,
+    );
+
+    res.status(200).json({
+      message: 'User removed from organization successfully',
+      user: updatedUser,
+    });
+  } catch (error) {
+    logger.error('[removeUserFromOrganization]', error);
+    res.status(500).json({ message: 'Error removing user from organization' });
+  }
+};
+
 module.exports = {
   getOrganizationStats,
   getOrganizationUsers,
@@ -560,4 +691,6 @@ module.exports = {
   createOrganizationUser,
   deleteOrganizationUser,
   resetOrganizationUserPassword,
+  addUserToOrganizationByEmail,
+  removeUserFromOrganization,
 };

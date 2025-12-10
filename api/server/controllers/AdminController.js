@@ -548,6 +548,103 @@ const deleteUserAdminController = async (req, res) => {
   }
 };
 
+/**
+ * Add user to organization (Admin only)
+ * Admin can add any user to any organization
+ */
+const addUserToOrganizationController = async (req, res) => {
+  try {
+    const { userId, organizationId } = req.body;
+
+    if (!userId || !organizationId) {
+      return res.status(400).json({ message: 'User ID and Organization ID are required' });
+    }
+
+    // Verify user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Verify organization exists
+    const organization = await Organization.findById(organizationId);
+    if (!organization) {
+      return res.status(404).json({ message: 'Organization not found' });
+    }
+
+    // Check if user is already in this organization
+    if (user.organization && user.organization.toString() === organizationId) {
+      return res.status(400).json({ message: 'User is already a member of this organization' });
+    }
+
+    // Update user's organization
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { organization: organizationId },
+      { new: true, select: '-password -__v -totpSecret -backupCodes' }
+    ).lean();
+
+    logger.info(`[addUserToOrganizationController] Admin ${req.user.email} added user ${user.email} to organization ${organization.name}`);
+
+    res.status(200).json({
+      message: 'User added to organization successfully',
+      user: {
+        ...updatedUser,
+        organizationName: organization.name,
+      },
+    });
+  } catch (error) {
+    logger.error('[addUserToOrganizationController]', error);
+    const { status, message } = normalizeHttpError(error);
+    res.status(status).json({ message });
+  }
+};
+
+/**
+ * Remove user from organization (Admin only)
+ */
+const removeUserFromOrganizationController = async (req, res) => {
+  try {
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ message: 'User ID is required' });
+    }
+
+    // Verify user exists
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    // Check if user has an organization
+    if (!user.organization) {
+      return res.status(400).json({ message: 'User is not a member of any organization' });
+    }
+
+    const previousOrgId = user.organization;
+    const previousOrg = await Organization.findById(previousOrgId);
+
+    // Remove organization from user
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      { $unset: { organization: 1 } },
+      { new: true, select: '-password -__v -totpSecret -backupCodes' }
+    ).lean();
+
+    logger.info(`[removeUserFromOrganizationController] Admin ${req.user.email} removed user ${user.email} from organization ${previousOrg?.name || previousOrgId}`);
+
+    res.status(200).json({
+      message: 'User removed from organization successfully',
+      user: updatedUser,
+    });
+  } catch (error) {
+    logger.error('[removeUserFromOrganizationController]', error);
+    const { status, message } = normalizeHttpError(error);
+    res.status(status).json({ message });
+  }
+};
+
 module.exports = {
   getAllUsersController,
   getUserByIdController,
@@ -558,4 +655,6 @@ module.exports = {
   updateUserStatusController,
   banUserController,
   deleteUserAdminController,
+  addUserToOrganizationController,
+  removeUserFromOrganizationController,
 };

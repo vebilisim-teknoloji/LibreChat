@@ -17,7 +17,13 @@ const {
   updateOrganizationUser,
   deleteOrganizationUser,
   resetOrganizationUserPassword,
+  addUserToOrganizationByEmail,
+  removeUserFromOrganization,
 } = require('~/server/controllers/OrganizationController.js');
+const {
+  addUserToOrganizationController,
+  removeUserFromOrganizationController,
+} = require('~/server/controllers/AdminController.js');
 const { requireJwtAuth } = require('~/server/middleware');
 const { SystemRoles } = require('librechat-data-provider');
 const { adminAudit } = require('~/server/middleware/auditLog.js');
@@ -47,6 +53,35 @@ router.get('/', adminAudit.viewUsers, (req, res, next) => {
     return getOrganizationUsers(req, res, next);
   }
   return getAllUsersController(req, res, next);
+});
+
+/**
+ * POST /api/admin/users/organization/add
+ * Add user to organization
+ * - ADMIN: Can add any user to any organization (by userId + organizationId)
+ * - ORG_ADMIN: Can only add users by email to their own organization
+ * NOTE: This route MUST be defined BEFORE /:id routes to prevent "organization" being treated as an ID
+ */
+router.post('/organization/add', adminAudit.updateUserRole, (req, res, next) => {
+  if (req.user.role === SystemRoles.ORG_ADMIN) {
+    return addUserToOrganizationByEmail(req, res, next);
+  }
+  return addUserToOrganizationController(req, res, next);
+});
+
+/**
+ * POST /api/admin/users/organization/remove
+ * Remove user from organization
+ * - ADMIN: Can remove any user from any organization
+ * - ORG_ADMIN: Can only remove users from their own organization
+ * NOTE: This route MUST be defined BEFORE /:id routes to prevent "organization" being treated as an ID
+ */
+router.post('/organization/remove', adminAudit.updateUserRole, (req, res, next) => {
+  if (req.user.role === SystemRoles.ORG_ADMIN) {
+    req.params.userId = req.body.userId;
+    return removeUserFromOrganization(req, res, next);
+  }
+  return removeUserFromOrganizationController(req, res, next);
 });
 
 /**
