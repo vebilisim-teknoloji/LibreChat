@@ -129,7 +129,21 @@ export default function AssignOrganizationModal({
       onSuccess?.();
       onClose();
     } catch (err: any) {
-      const message = err?.response?.data?.message || err?.message || localize('com_admin_operation_failed');
+      const apiMessage = err?.response?.data?.message || err?.message || '';
+
+      // Map API error messages to localization keys
+      const errorMessageMap: Record<string, string> = {
+        'User with this email not found': 'com_admin_error_user_not_found_email',
+        'User is already a member of your organization': 'com_admin_error_user_already_in_your_org',
+        'User is already a member of another organization': 'com_admin_error_user_in_another_org',
+        'Cannot add system administrators to organization': 'com_admin_error_cannot_add_admin',
+        'Organization not found': 'com_admin_error_org_not_found',
+        'Error adding user to organization': 'com_admin_error_adding_user',
+      };
+
+      const localizedKey = errorMessageMap[apiMessage];
+      const message = localizedKey ? localize(localizedKey as any) : (apiMessage || localize('com_admin_operation_failed'));
+
       setError(message);
 
       // Show error toast

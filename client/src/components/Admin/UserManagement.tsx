@@ -328,10 +328,10 @@ export default function UserManagement() {
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             {isOrgAdmin && (
               <Button
-                variant="default"
+                variant="outline"
                 size="default"
                 onClick={() => setShowAddUserByEmail(true)}
-                className="w-full bg-green-600 text-white border-green-600 hover:bg-green-700 sm:w-auto"
+                className="w-full border-white/70 text-white hover:bg-white/10 dark:border-blue-400 dark:text-blue-300 dark:hover:bg-blue-900/30 sm:w-auto"
               >
                 <UserPlus className="h-4 w-4" />
                 {localize('com_admin_add_existing_user')}
